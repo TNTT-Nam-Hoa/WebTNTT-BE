@@ -2,12 +2,12 @@
 
 namespace App\Services\Excel\Imports;
 
+use App\KhoaHoc;
+use App\LopHoc;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
-use App\KhoaHoc;
-use App\LopHoc;
 
 class LopHocImport implements ToCollection, WithHeadingRow, WithMultipleSheets
 {
@@ -36,12 +36,11 @@ class LopHocImport implements ToCollection, WithHeadingRow, WithMultipleSheets
      */
     public function collection(Collection $rows)
     {
-        info($rows);
-        $khoaId = KhoaHoc::hienTai()->id;
+        $khoaId = KhoaHoc::hienTaiHoacTaoMoi()->id;
         $lops   = LopHoc::where('khoa_hoc_id', $khoaId)->get();
-        $rows   = $rows->whereNotNull('nganh')
-            ->whereNotNull('cap')
-            ->whereNotNull('doi');
+        $rows   = $rows->where('nganh', '<>', null)
+            ->where('cap', '<>', null)
+            ->where('doi', '<>', null);
 
         foreach ($rows as $index => $row) {
             $lop = $lops->filter(function ($lh) use ($row) {

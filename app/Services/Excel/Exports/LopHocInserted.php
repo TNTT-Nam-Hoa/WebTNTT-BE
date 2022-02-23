@@ -2,16 +2,16 @@
 
 namespace App\Services\Excel\Exports;
 
-use Carbon\Carbon;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Events\AfterSheet;
 use Maatwebsite\Excel\Excel;
 
-class LopHocInserted implements FromArray, WithTitle, WithHeadings, ShouldAutoSize
+class LopHocInserted implements FromArray, WithTitle, WithHeadings, ShouldAutoSize, WithEvents
 {
     use Exportable;
 
@@ -20,7 +20,7 @@ class LopHocInserted implements FromArray, WithTitle, WithHeadings, ShouldAutoSi
 
     public function __construct($data)
     {
-        $this->data     = $data;
+        $this->data = $data;
     }
 
     public function title(): string

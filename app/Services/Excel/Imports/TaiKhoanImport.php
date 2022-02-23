@@ -2,14 +2,14 @@
 
 namespace App\Services\Excel\Imports;
 
+use App\Exceptions\ExcelInvalidFormat;
+use App\KhoaHoc;
+use App\LopHoc;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
-use App\Exceptions\ExcelInvalidFormat;
-use App\KhoaHoc;
-use App\LopHoc;
 
 class TaiKhoanImport implements ToCollection, WithHeadingRow, WithMultipleSheets
 {
@@ -49,10 +49,11 @@ class TaiKhoanImport implements ToCollection, WithHeadingRow, WithMultipleSheets
      */
     public function collection(Collection $rows)
     {
-        $khoaId    = KhoaHoc::hienTai()->id;
+        $khoaId    = KhoaHoc::hienTaiHoacTaoMoi()->id;
         $lopHocArr = LopHoc::where('khoa_hoc_id', $khoaId)->get();
 
-        $rows = $rows->whereNotNull('ngay_sinh')->whereNotNull('ho_va_ten')
+        $rows = $rows->where('ngay_sinh', '<>', null)
+            ->where('ho_va_ten', '<>', null)
             ->map(function ($c) {
                 $c['ngay_sinh']     = mapDate($c['ngay_sinh']);
                 $c['ngay_rua_toi']  = $c['ngay_rua_toi'] ? mapDate($c['ngay_rua_toi']) : null;

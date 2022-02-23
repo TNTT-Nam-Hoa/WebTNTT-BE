@@ -95,12 +95,13 @@ class LopHocController extends Controller
             }
 
             $fileName = 'TaoMoi_LopHoc_'.Carbon::now()->format('d-m-Y_h-i-s').'.xlsx';
-            $result   = Excel::store(new LopHocInserted($resultArr), $fileName, 'local');
+            $result   = Excel::store(new LopHocInserted($resultArr), $fileName);
+
             if (!$result) {
                 throw new Exception('Can not create file');
             }
-            DB::commit();
 
+            DB::commit();
         } catch (Throwable $exception) {
             DB::rollBack();
             throw $exception;
