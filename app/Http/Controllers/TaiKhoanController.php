@@ -62,7 +62,7 @@ class TaiKhoanController extends Controller
 
     public function generateExcelFile(TaiKhoan $taiKhoan, LopHoc $lopHoc, Request $request, Library $library)
     {
-        $file = \Excel::create('Danh Sach Tai Khoan_' . date('d-m-Y'), function ($excel) use ($taiKhoan, $lopHoc, $request, $library) {
+        $file = \Excel::download('Danh Sach Tai Khoan_' . date('d-m-Y'), function ($excel) use ($taiKhoan, $lopHoc, $request, $library) {
             $khoaID = $request->get('khoa');
 
             $arrRow = $this->generateTaiKhoanData($taiKhoan, $khoaID, $library);
@@ -386,7 +386,7 @@ class TaiKhoanController extends Controller
         }
 
         $file    = $request->file('file');
-        $results = \Excel::load($file->getRealPath())->get();
+        $results = \Excel::import($file->getRealPath())->get();
 
         try {
             $tmpCollect = $results[0];
@@ -504,7 +504,7 @@ class TaiKhoanController extends Controller
             ];
         }
 
-        $file = \Excel::create('TaoMoi_TaiKhoan_' . date('d-m-Y'), function ($excel) use ($arrRow) {
+        $file = \Excel::download('TaoMoi_TaiKhoan_' . date('d-m-Y'), function ($excel) use ($arrRow) {
             $excel->sheet('Danh Sách', function ($sheet) use ($arrRow) {
                 $sheet->fromArray($arrRow)
                     ->setFreeze('C2');

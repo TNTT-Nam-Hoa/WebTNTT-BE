@@ -46,7 +46,7 @@ class LopHocController extends Controller
         }
 
         $file = $request->file('file');
-        $results = \Excel::load($file->getRealPath())->get();
+        $results = \Excel::import($file->getRealPath())->get();
 
         try {
             $tmpCollect = $results[0];
@@ -112,7 +112,7 @@ class LopHocController extends Controller
             ];
         }
 
-        $file = \Excel::create('TaoMoi_LopHoc_' . date('d-m-Y'), function ($excel) use ($arrRow) {
+        $file = \Excel::download('TaoMoi_LopHoc_' . date('d-m-Y'), function ($excel) use ($arrRow) {
             $excel->sheet('Danh Sách', function ($sheet) use ($arrRow) {
                 $sheet->fromArray($arrRow);
             });
