@@ -44,6 +44,6 @@ class HelperController extends Controller
 
     public function getDownloadFile($fileName)
     {
-        return \Response::download("/tmp/$fileName");
+        return \Response::download(storage_path("app/$fileName"));
     }
 }

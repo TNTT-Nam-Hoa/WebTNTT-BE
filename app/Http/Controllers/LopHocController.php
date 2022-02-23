@@ -1,18 +1,26 @@
 <?php
-namespace App\Http\Controllers;
 
-use App\Services\Library;
-use Illuminate\Http\Request;
+namespace App\Http\Controllers;
 
 use App\DiemDanh;
 use App\DiemSo;
 use App\KhoaHoc;
 use App\LopHoc;
+use App\Services\Excel\Exports\LopHocInserted;
+use App\Services\Excel\Imports\LopHocImport;
+use App\Services\Library;
+use Carbon\Carbon;
+use DB;
+use Excel;
+use Exception;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class LopHocController extends Controller
 {
     /**
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @return Response
      */
     public function getDanhSachTheoKhoa($khoaHocID, LopHoc $lopHoc)
     {
@@ -27,8 +35,8 @@ class LopHocController extends Controller
     }
 
     /**
-     * @param LopHoc $lopHoc
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @param  LopHoc  $lopHoc
+     * @return Response
      */
     public function getThongTin(LopHoc $lopHoc)
     {
@@ -38,106 +46,85 @@ class LopHocController extends Controller
         return response()->json($lopHoc);
     }
 
-    public function postTapTin(Request $request, Library $library) {
-        if(!$request->hasFile('file')) {
-           return response()->json([
+    public function postTapTin(Request $request, Library $library)
+    {
+        if (!$request->hasFile('file')) {
+            return response()->json([
                 'error' => 'Không tìm thấy tập tin.',
-           ], 400);
+            ], 400);
         }
 
-        $file = $request->file('file');
-        $results = \Excel::import($file->getRealPath())->get();
-
+        $importer = new LopHocImport();
+        Excel::import($importer, $request->file('file'));
         try {
-            $tmpCollect = $results[0];
-            $khoaHocID = KhoaHoc::hienTaiHoacTaoMoi()->id;
-            $lopHocColl = LopHoc::where('khoa_hoc_id', $khoaHocID)->get();
-
-            $tmpCollect = $tmpCollect->filter(function ($c) {
-                return $c->nganh;
-            });
-
-            foreach ($lopHocColl as $c) {
-                $tmpCollect = $tmpCollect->filter( function ($lh) use ($c) {
-                    return !($lh->nganh == $c->nganh && $lh->cap == $c->cap && $lh->doi == $c->doi);
-                });
-            }
-
             return response()->json([
-                'data' => array_merge([],$tmpCollect->toArray()),
+                'data' => $importer->getResult(),
             ]);
-        } catch (\Exception $e) {
-           return response()->json([
+        } catch (Exception $e) {
+            return response()->json([
                 'error' => 'Kiểm tra lại định dạng tập tin.',
-           ], 400);        
+            ], 400);
         }
     }
 
-    public function postTao(Request $request) {
-        if(!$request->has('data')) {
-           return response()->json([
+    public function postTao(Request $request)
+    {
+        if (!$request->has('data')) {
+            return response()->json([
                 'error' => 'Không thấy dữ liệu.',
-           ], 400);
+            ], 400);
         }
 
-        $resultArr = [];
+        $resultArr  = [];
         $tmpItemArr = $request->data;
-        $khoaHocID = KhoaHoc::hienTaiHoacTaoMoi()->id;
-        $lopHocColl = LopHoc::where('khoa_hoc_id', $khoaHocID)->get();
+        $khoaHocID  = KhoaHoc::hienTaiHoacTaoMoi()->id;
 
-        \DB::beginTransaction();
-        foreach ($tmpItemArr as $tmpItem) {
-            try {
-                $lopHoc = LopHoc::create(array_merge([
-                    'khoa_hoc_id' => $khoaHocID,
-                ], $tmpItem));   
-            } catch (\Exception $e) {
-                continue;
+        try {
+            DB::beginTransaction();
+            foreach ($tmpItemArr as $tmpItem) {
+                try {
+                    $lopHoc = LopHoc::create(array_merge([
+                        'khoa_hoc_id' => $khoaHocID,
+                    ], $tmpItem));
+                } catch (Exception $e) {
+                    continue;
+                }
+
+                $lopHoc->ten = $lopHoc->taoTen();
+                $resultArr[] = $lopHoc->toArray();
             }
 
-            $lopHoc->ten = $lopHoc->taoTen();
-            $resultArr[] = $lopHoc;
-        }
-        
-        $arrRow[] = [
-            'Mã Lớp',
-            'Tên',
-            'Vị Trí Học',
-        ];
-        foreach ($resultArr as $item) {
-            $arrRow[] = [
-                $item->id,
-                $item->ten,
-                $item->vi_tri_hoc,
-            ];
-        }
+            $fileName = 'TaoMoi_LopHoc_'.Carbon::now()->format('d-m-Y_h-i-s').'.xlsx';
+            $result   = Excel::store(new LopHocInserted($resultArr), $fileName, 'local');
+            if (!$result) {
+                throw new Exception('Can not create file');
+            }
+            DB::commit();
 
-        $file = \Excel::download('TaoMoi_LopHoc_' . date('d-m-Y'), function ($excel) use ($arrRow) {
-            $excel->sheet('Danh Sách', function ($sheet) use ($arrRow) {
-                $sheet->fromArray($arrRow);
-            });
-        })->store('xlsx', '/tmp', true);
-        \DB::commit();
+        } catch (Throwable $exception) {
+            DB::rollBack();
+            throw $exception;
+        }
 
         return response()->json([
             'data' => $resultArr,
-            'file' => $file['file'],
+            'file' => $fileName,
         ]);
     }
 
     /**
-     * @param LopHoc $lopHoc
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @param  LopHoc  $lopHoc
+     * @return Response
      */
     public function postUpdate(LopHoc $lopHoc)
     {
         try {
             $lopHoc->fill(\Request::all());
             $lopHoc->save();
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'error' => 'Kiểm tra lại thông tin.',
-           ], 400);
+            ], 400);
         }
 
         return $this->getThongTin($lopHoc);
@@ -150,15 +137,15 @@ class LopHocController extends Controller
     }
 
     /**
-     * @param LopHoc $lopHoc
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @param  LopHoc  $lopHoc
+     * @return Response
      */
     public function postThemThanhVien(LopHoc $lopHoc, Request $request)
     {
-        if(!$request->has('id') || !is_array($request->id)) {
-           return response()->json([
+        if (!$request->has('id') || !is_array($request->id)) {
+            return response()->json([
                 'error' => 'Không thấy dữ liệu.',
-           ], 400);
+            ], 400);
         }
 
         $this->themThanhVien($lopHoc, $request->id);
@@ -172,16 +159,16 @@ class LopHocController extends Controller
     }
 
     /**
-     * @param LopHoc $lopHoc
-     * @param tmpItem $tmpItem
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @param  LopHoc  $lopHoc
+     * @param  tmpItem  $tmpItem
+     * @return Response
      */
     public function postXoaThanhVien(LopHoc $lopHoc, Request $request)
     {
-        if(!$request->has('id') || !is_array($request->id)) {
-           return response()->json([
+        if (!$request->has('id') || !is_array($request->id)) {
+            return response()->json([
                 'error' => 'Không thấy dữ liệu.',
-           ], 400);
+            ], 400);
         }
 
         $arrID = $request->id;
@@ -191,25 +178,25 @@ class LopHocController extends Controller
     }
 
     /**
-     * @param LopHoc $lopHoc
-     * @param DiemDanh $diemDanh
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @param  LopHoc  $lopHoc
+     * @param  DiemDanh  $diemDanh
+     * @return Response
      */
     public function getChuyenCan(LopHoc $lopHoc, DiemDanh $diemDanh, Request $request, Library $library)
     {
-        if(!$request->has('ngay_hoc')) {
-           return response()->json([
+        if (!$request->has('ngay_hoc')) {
+            return response()->json([
                 'error' => 'Không thấy dữ liệu.',
-           ], 400);
+            ], 400);
         }
 
         $arrHocVien = $lopHoc->hoc_vien()->pluck('tai_khoan_id')->toArray();
-        $sDate = $this->getSundayFromADate($lopHoc, $library, $request->ngay_hoc);
+        $sDate      = $this->getSundayFromADate($lopHoc, $library, $request->ngay_hoc);
 
-        if(!$sDate) {
-           return response()->json([
+        if (!$sDate) {
+            return response()->json([
                 'error' => 'Ngày không hợp lệ.',
-           ], 400);
+            ], 400);
         }
 
         return response()->json([
@@ -219,15 +206,15 @@ class LopHocController extends Controller
     }
 
     /**
-     * @param LopHoc $lopHoc
-     * @param Library $library
+     * @param  LopHoc  $lopHoc
+     * @param  Library  $library
      * @param $ngay_hoc
      * @return mixed|null
      */
     private function getSundayFromADate(LopHoc $lopHoc, Library $library, $ngay_hoc)
     {
         // Trong pham vi 6 ngay
-        $endDate = strtotime($ngay_hoc);
+        $endDate   = strtotime($ngay_hoc);
         $startDate = strtotime('-6day', $endDate);
         // Chỉ hiện ngày trong phạm vi của Khóa Học Tương Ứng
         if ($startDate < strtotime($lopHoc->khoa_hoc->ngay_bat_dau)) {
@@ -237,7 +224,7 @@ class LopHocController extends Controller
             $endDate = strtotime($lopHoc->khoa_hoc->ngay_ket_thuc);
         }
         $startDate = date('Y-m-d', $startDate);
-        $endDate = date('Y-m-d', $endDate);
+        $endDate   = date('Y-m-d', $endDate);
         // Lay ngay Chua Nhat
         $aDate = $library->SpecificDayBetweenDates($startDate, $endDate);
 
@@ -257,7 +244,7 @@ class LopHocController extends Controller
 
         return response()->json([
             'data' => $diemSo->getHocLuc($arrHocVien, $lopHoc->khoa_hoc, $request->dot),
-            'dot' => $request->dot,
+            'dot'  => $request->dot,
         ]);
     }
 
@@ -276,7 +263,7 @@ class LopHocController extends Controller
                 ->first();
 
             $hocVien->pivot->xep_hang = $arrTmp['xep_hang'];
-            $hocVien->pivot->ghi_chu = $arrTmp['ghi_chu'];
+            $hocVien->pivot->ghi_chu  = $arrTmp['ghi_chu'];
             $hocVien->pivot->save();
         }
 
