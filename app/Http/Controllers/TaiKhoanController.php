@@ -7,6 +7,7 @@ use App\DiemSo;
 use App\Http\Requests\TaiKhoanFormRequest;
 use App\KhoaHoc;
 use App\LopHoc;
+use App\Services\Excel\Exports\TaiKhoanExport;
 use App\Services\Excel\Exports\TaiKhoanInserted;
 use App\Services\Excel\Imports\TaiKhoanImport;
 use App\Services\Library;
@@ -72,31 +73,16 @@ class TaiKhoanController extends Controller
         return response()->json($taiKhoan->toArray());
     }
 
-    public function generateExcelFile(TaiKhoan $taiKhoan, LopHoc $lopHoc, Request $request, Library $library)
+    public function generateExcelFile()
     {
-        $file = Excel::download('Danh Sach Tai Khoan_'.date('d-m-Y'), function ($excel) use ($taiKhoan, $lopHoc, $request, $library) {
-            $khoaID = $request->get('khoa');
+        $fileName = 'DanhSachTaiKhoan_'.Carbon::now()->format('d-m-Y').'.xlsx';
+        $result   = Excel::store(new TaiKhoanExport(), $fileName);
 
-            $arrRow = $this->generateTaiKhoanData($taiKhoan, $khoaID, $library);
-            $excel->sheet('Danh Sách', function ($sheet) use ($arrRow) {
-                $sheet->fromArray($arrRow)
-                    ->setFreeze('C2');
-            });
-
-            if (!$khoaID) {
-                return;
-            }
-
-            $arrData = $this->getTongKet($lopHoc, $request);
-            $arrRow  = $this->generateTongKetData($arrData, $library);
-            $excel->sheet('Tổng Kết - Khóa '.$khoaID, function ($sheet) use ($arrRow) {
-                $sheet->fromArray($arrRow)->setFreeze('D4');
-            });
-
-        })->store('xlsx', '/tmp', true);
-
+        if (!$result) {
+            throw new Exception('Can not create file');
+        }
         return response()->json([
-            'data' => $file['file'],
+            'data' => $fileName,
         ]);
     }
 
